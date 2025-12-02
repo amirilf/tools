@@ -1,0 +1,172 @@
+#!/usr/bin/env python3
+import sys, os, argparse, getpass, json, struct, time
+from pathlib import Path
+from http.server import HTTPServer, BaseHTTPRequestHandler
+sys.path.insert(0, str(Path(__file__).parent))
+from lib.storage import SecretStorage
+from lib.totp import TOTPGenerator
+
+class C:
+    G='\033[92m'; Y='\033[93m'; R='\033[91m'; C='\033[96m'; B='\033[1m'; E='\033[0m'
+
+storage = SecretStorage()
+totp = TOTPGenerator()
+session = {'pw': None, 'time': 0, 'timeout': 300}
+
+def get_pw(prompt="Master Password: ", verify=False):
+    pw = getpass.getpass(prompt)
+    if verify and pw != getpass.getpass("Confirm: "):
+        print(f"{C.R}Passwords don't match{C.E}"); sys.exit(1)
+    return pw
+
+def check_session():
+    if not session['pw'] or time.time() - session['time'] > session['timeout']:
+        return False
+    session['time'] = time.time()
+    return True
+
+def cmd_init(args):
+    if storage.is_initialized() and input(f"{C.Y}Reinit? ALL DATA LOST! (yes/no): {C.E}").lower() != 'yes':
+        return
+    storage.initialize(get_pw("Master Password: ", True))
+    print(f"{C.G}✓ Initialized{C.E}")
+
+def cmd_add(args):
+    if not storage.is_initialized(): print(f"{C.R}Run: ath init{C.E}"); sys.exit(1)
+    pw = get_pw()
+    d = args.domain or input("Domain: ").strip()
+    u = args.username or input("Username: ").strip()
+    s = args.secret or getpass.getpass("Secret: ").strip()
+    try: storage.add(pw, d, u, s); print(f"{C.G}✓ {u}@{d}{C.E}")
+    except ValueError as e: print(f"{C.R}{e}{C.E}"); sys.exit(1)
+
+def cmd_remove(args):
+    try: storage.remove(get_pw(), args.domain, args.username); print(f"{C.G}✓ Removed{C.E}")
+    except ValueError as e: print(f"{C.R}{e}{C.E}"); sys.exit(1)
+
+def cmd_list(args):
+    try:
+        secrets = storage.list_all(get_pw())
+        if not secrets: print(f"{C.Y}No secrets{C.E}"); return
+        print(f"\n{C.B}Accounts:{C.E}"); by_d = {}
+        for s in secrets: by_d.setdefault(s['domain'], []).append(s['username'])
+        for d in sorted(by_d.keys()):
+            print(f"{C.C}{d}{C.E}"); [print(f"  └─ {u}") for u in sorted(by_d[d])]
+        print()
+    except ValueError as e: print(f"{C.R}{e}{C.E}"); sys.exit(1)
+
+def cmd_show(args):
+    try:
+        secrets = storage.get_by_domain(get_pw(), args.domain) if args.domain else storage.load(get_pw())
+        if not secrets: print(f"{C.Y}No secrets{C.E}"); return
+        print(f"\n{C.B}TOTP Codes:{C.E}\n{'─'*70}\n{C.B}{'Domain':<25} {'Username':<25} {'Code':<10}{C.E}\n{'─'*70}")
+        for s in sorted(secrets, key=lambda x: (x['domain'], x['username'])):
+            try: print(f"{s['domain']:<25} {s['username']:<25} {C.G}{totp.generate(s['secret'])}{C.E}")
+            except: print(f"{s['domain']:<25} {s['username']:<25} {C.R}ERROR{C.E}")
+        print()
+    except ValueError as e: print(f"{C.R}{e}{C.E}"); sys.exit(1)
+
+def cmd_get(args):
+    try:
+        secrets = [s for s in storage.get_by_domain(get_pw(), args.domain) if not args.username or s['username'] == args.username]
+        if not secrets: print(f"{C.R}Not found{C.E}", file=sys.stderr); sys.exit(1)
+        if len(secrets) > 1: print(f"{C.Y}Multiple. Use -u{C.E}", file=sys.stderr); sys.exit(1)
+        print(totp.generate(secrets[0]['secret']))
+    except ValueError as e: print(f"{C.R}{e}{C.E}", file=sys.stderr); sys.exit(1)
+
+class ServerHandler(BaseHTTPRequestHandler):
+    def log_message(self, *args): pass
+    
+    def _cors_headers(self):
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.send_header('Access-Control-Allow-Methods', 'POST, OPTIONS')
+        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
+    
+    def do_POST(self):
+        if self.path != '/api':
+            self.send_error(404); return
+        try:
+            length = int(self.headers['Content-Length'])
+            data = json.loads(self.rfile.read(length))
+            action = data.get('action')
+            
+            if action == 'auth':
+                pw = data.get('password')
+                if storage.verify_password(pw):
+                    session['pw'] = pw; session['time'] = time.time()
+                    self.send_response(200)
+                    self.send_header('Content-Type', 'application/json')
+                    self._cors_headers()
+                    self.end_headers()
+                    self.wfile.write(json.dumps({'success': True}).encode())
+                else:
+                    self.send_response(401)
+                    self.send_header('Content-Type', 'application/json')
+                    self._cors_headers()
+                    self.end_headers()
+                    self.wfile.write(json.dumps({'error': 'Invalid password'}).encode())
+            
+            elif action == 'get':
+                if not check_session():
+                    self.send_response(401)
+                    self.send_header('Content-Type', 'application/json')
+                    self._cors_headers()
+                    self.end_headers()
+                    self.wfile.write(json.dumps({'error': 'Not authenticated'}).encode())
+                    return
+                domain = data.get('domain')
+                secrets = storage.get_by_domain(session['pw'], domain)
+                accounts = [{'domain': s['domain'], 'username': s['username'], 'code': totp.generate(s['secret'])} for s in secrets]
+                self.send_response(200)
+                self.send_header('Content-Type', 'application/json')
+                self._cors_headers()
+                self.end_headers()
+                self.wfile.write(json.dumps({'accounts': accounts}).encode())
+            
+            elif action == 'logout':
+                session['pw'] = None
+                self.send_response(200)
+                self._cors_headers()
+                self.end_headers()
+            
+            else:
+                self.send_error(400)
+        except Exception as e:
+            print(f"Error: {e}")
+            self.send_error(500)
+    
+    def do_OPTIONS(self):
+        self.send_response(200)
+        self._cors_headers()
+        self.end_headers()
+
+def cmd_server(args):
+    if not storage.is_initialized(): print(f"{C.R}Run: ath init{C.E}"); sys.exit(1)
+    port = args.port or 18777
+    print(f"{C.G}✓ Server running on http://localhost:{port}{C.E}")
+    print(f"{C.Y}Press Ctrl+C to stop{C.E}\n")
+    try:
+        HTTPServer(('localhost', port), ServerHandler).serve_forever()
+    except KeyboardInterrupt:
+        print(f"\n{C.Y}Stopped{C.E}")
+
+def main():
+    p = argparse.ArgumentParser(description='Secure TOTP')
+    sub = p.add_subparsers(dest='cmd')
+    sub.add_parser('init', help='Initialize')
+    pa = sub.add_parser('add', help='Add secret'); pa.add_argument('-d', '--domain'); pa.add_argument('-u', '--username'); pa.add_argument('-s', '--secret')
+    pr = sub.add_parser('remove', help='Remove'); pr.add_argument('-d', '--domain', required=True); pr.add_argument('-u', '--username', required=True)
+    sub.add_parser('list', help='List accounts')
+    ps = sub.add_parser('show', help='Show codes'); ps.add_argument('-d', '--domain')
+    pg = sub.add_parser('get', help='Get code'); pg.add_argument('-d', '--domain', required=True); pg.add_argument('-u', '--username')
+    pv = sub.add_parser('server', help='Start server'); pv.add_argument('-p', '--port', type=int)
+    
+    args = p.parse_args()
+    if not args.cmd: args.cmd = 'show'
+    
+    cmds = {'init': cmd_init, 'add': cmd_add, 'remove': cmd_remove, 'list': cmd_list, 'show': cmd_show, 'get': cmd_get, 'server': cmd_server}
+    try: cmds[args.cmd](args)
+    except KeyboardInterrupt: print(f"\n{C.Y}Cancelled{C.E}"); sys.exit(130)
+    except Exception as e: print(f"{C.R}{e}{C.E}"); sys.exit(1)
+
+if __name__ == '__main__': main()

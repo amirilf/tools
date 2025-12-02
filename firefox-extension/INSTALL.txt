@@ -1,0 +1,46 @@
+╔══════════════════════════════════════════════════════════════════╗
+║           HOW TO INSTALL THE EXTENSION IN FIREFOX               ║
+╚══════════════════════════════════════════════════════════════════╝
+
+Firefox blocks unsigned extensions by default.
+
+EASIEST METHOD: Load as Temporary Add-on
+─────────────────────────────────────────────────────────────────
+Every time you open Firefox:
+
+1. Type in address bar: about:debugging
+2. Click "This Firefox" on the left
+3. Click "Load Temporary Add-on..."
+4. Navigate to this folder
+5. Select: manifest.json
+6. Done!
+
+Takes 10 seconds. Extension works until you close Firefox.
+
+
+PERMANENT METHOD: Firefox Developer Edition
+─────────────────────────────────────────────────────────────────
+1. Install Firefox Developer Edition from:
+   https://www.mozilla.org/firefox/developer/
+
+2. In Developer Edition:
+   - Type: about:config
+   - Search: xpinstall.signatures.required
+   - Set to: false
+
+3. Then:
+   - Type: about:addons
+   - Click gear ⚙️ → "Install Add-on From File"
+   - Select: secure-totp.xpi
+
+Extension stays installed permanently.
+
+
+DON'T FORGET!
+─────────────────────────────────────────────────────────────────
+The server must be running for the extension to work:
+
+    ath server
+
+Keep that terminal open!
+

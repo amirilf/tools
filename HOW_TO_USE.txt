@@ -1,0 +1,143 @@
+================================================================================
+                     QUICK START (First Time)
+================================================================================
+
+1. Add to PATH (once):
+   echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
+   source ~/.bashrc
+
+2. Install authenticator:
+   cd authenticator/
+   ./install.sh
+
+3. Initialize (creates YOUR master password):
+   ath init
+   → Enter a password (YOU choose it, remember it!)
+   → This encrypts your storage
+
+4. Add a code:
+   ath add -d github.com -u your@email.com
+   → Enter the TOTP secret from GitHub 2FA setup
+
+5. View codes:
+   ath
+   → Shows all your TOTP codes
+
+6. Start server (for extension):
+   ath server
+   → Keep this running in background
+   → Extension needs this to work!
+
+7. Install extension (PERMANENT):
+   cd firefox-extension/
+   zip -r secure-totp.xpi manifest.json *.js *.html icon.png
+   
+   Firefox → about:addons → Gear icon ⚙️ → Install Add-on From File
+   → Select: secure-totp.xpi
+   
+   OR (Temporary - disappears on close):
+   Firefox → about:debugging → Load Temporary Add-on
+   → Select: firefox-extension/manifest.json
+
+8. Use extension:
+   → Go to any 2FA login page
+   → Click extension icon
+   → Enter YOUR master password (from step 3)
+   → Click account → Autofilled!
+
+
+================================================================================
+                        3 SEPARATE PROJECTS
+================================================================================
+
+1. AUTHENTICATOR (TOTP Codes)
+------------------------------
+Install:
+  cd authenticator/
+  ./install.sh
+
+Use:
+  ath init              # First time setup
+  ath add               # Add new code
+  ath                   # Show all codes
+  ath server            # Start server for Firefox extension
+
+Storage: ~/.local/share/secure-tools/secrets.enc (encrypted)
+
+
+2. PROXY MANAGER
+----------------
+Install:
+  cd proxy/
+  ./install.sh
+
+Use:
+  px                    # Show status
+  px work               # Switch to 'work' profile
+  px off                # Disable proxy
+  px list               # List all profiles
+  px add work -H 192.168.1.1:8080 -S 192.168.1.1:8080
+
+Config: ~/.config/secure-tools/proxy-profiles.json
+
+
+3. FIREFOX EXTENSION
+--------------------
+Install:
+  1. Start server: ath server
+  2. Firefox → about:debugging
+  3. Load Temporary Add-on
+  4. Select: firefox-extension/manifest.json
+
+Use:
+  1. Make sure server is running: ath server
+  2. Go to any 2FA login page
+  3. Click extension icon
+  4. Enter master password
+  5. Click account to autofill
+
+Security:
+  - Extension only connects to localhost:18777
+  - No other extensions can access it
+  - No websites can access it
+  - Server requires password authentication
+  - 5 minute session timeout
+
+
+================================================================================
+                            COMMON ISSUES
+================================================================================
+
+Q: Extension says "Server not running"
+A: Run: ath server (and keep it running!)
+
+Q: Extension asks for "Master Password"
+A: It's the password YOU created when you ran "ath init"
+   If you forgot it, you need to reinitialize (loses all data)
+
+Q: "Run: ath init" error
+A: You haven't initialized yet. Run: ath init (first time setup)
+
+Q: Can't find ath command
+A: Add to PATH: export PATH="$HOME/.local/bin:$PATH"
+   Or add to ~/.bashrc permanently
+
+Q: How do I get TOTP secrets?
+A: When enabling 2FA on a website, they show a QR code or text secret
+   Copy that secret and use: ath add
+
+
+================================================================================
+                              IMPORTANT
+================================================================================
+
+- Each folder is STANDALONE project
+- NO shared dependencies
+- Install each separately
+- Server MUST be running for extension to work
+- Extension is SECURE - only connects to localhost
+- All secrets encrypted with AES-256
+
+
+Total Code: 464 lines!
+

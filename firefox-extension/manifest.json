@@ -1,0 +1,32 @@
+{
+  "manifest_version": 2,
+  "name": "Secure TOTP",
+  "version": "1.0.0",
+  "description": "Local TOTP autofill",
+  
+  "permissions": [
+    "activeTab",
+    "storage",
+    "http://localhost:18777/*"
+  ],
+  
+  "background": {
+    "scripts": ["background.js"]
+  },
+  
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  
+  "browser_action": {
+    "default_popup": "popup.html",
+    "default_icon": {"48": "icon.png"},
+    "default_title": "Secure TOTP"
+  },
+  
+  "icons": {"48": "icon.png", "96": "icon.png"}
+}

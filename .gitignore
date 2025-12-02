@@ -1,0 +1,68 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+venv/
+ENV/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Secrets (NEVER commit!)
+secrets.conf
+secrets.enc
+*.enc
+config.conf
+current_profile
+current-proxy-profile
+
+# Logs
+*.log
+logs/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Backups
+*.backup
+*.bak
+*~
+
+# Firefox extension development
+firefox-extension/*.xpi
+firefox-extension/web-ext-artifacts/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+create_icon.py
+
+# User config
+.env
+.env.local
+
